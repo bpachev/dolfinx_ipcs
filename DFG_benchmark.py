@@ -113,6 +113,16 @@ def IPCS(outdir: Path, filename: str, degree_u: int, cuda=False,
     obstacle_facets = mt.indices[mt.values == markers["Obstacle"]]
     obstacle_dofs = fem.locate_dofs_topological(V, fdim, obstacle_facets)
 
+    u_inlet_base = fem.Function(V)
+    def inlet_base():
+        if mesh.geometry.dim == 3:
+            return lambda x: ((16 *  Um * x[1] * x[2] * (H - x[1]) * (H - x[2]) / (H**4),
+                               np.zeros(x.shape[1]), np.zeros(x.shape[1])))
+        elif mesh.geometry.dim == 2:
+            U = 1.5
+            return lambda x: np.row_stack((4 * U * x[1] * (0.41 - x[1]) / (0.41**2), np.zeros(x.shape[1])))
+    u_inlet_base.interpolate(inlet_base())
+    
     def inlet_velocity(t):
         if mesh.geometry.dim == 3:
             return lambda x: ((16 * np.sin(np.pi * t / T) * Um * x[1] * x[2] * (H - x[1]) * (H - x[2]) / (H**4),
@@ -122,7 +132,10 @@ def IPCS(outdir: Path, filename: str, degree_u: int, cuda=False,
             return lambda x: np.row_stack((4 * U * x[1] * (0.41 - x[1]) / (0.41**2), np.zeros(x.shape[1])))
 
     u_inlet = fem.Function(V)
-    u_inlet.interpolate(inlet_velocity(t))
+    def update_inlet(t):
+        u_inlet.x.array[:] = u_inlet_base.x.array * np.sin(np.pi * t / T)
+    
+    #u_inlet.interpolate(inlet_velocity(t))
     zero = np.array((0,) * mesh.geometry.dim, dtype=default_scalar_type)
     bcs_tent = [fem.dirichletbc(u_inlet, inlet_dofs), fem.dirichletbc(
         zero, wall_dofs, V), fem.dirichletbc(zero, obstacle_dofs, V)]
@@ -239,7 +252,8 @@ def IPCS(outdir: Path, filename: str, degree_u: int, cuda=False,
         t += dt
         # Solve step 1
         with common.Timer("~Step 1"):
-            u_inlet.interpolate(inlet_velocity(t))
+            #u_inlet.interpolate(inlet_velocity(t))
+            update_inlet(t)
             with common.Timer("~Assemble 1"):
                 if cuda:
                     # Hack to force device-side PETSc vector values to propigate back to dolfinx Vector
