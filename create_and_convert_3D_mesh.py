@@ -11,13 +11,13 @@ from dolfinx.io import gmshio
 from mpi4py import MPI
 
 
-def generate_3D_channel(filename: str, outdir: str):
+def generate_3D_channel(filename: str, outdir: str, geofile="cfd.geo"):
     gdim = 3
-    os.system(f"gmsh -{gdim} -optimize_netgen cfd.geo")
+    os.system(f"gmsh -{gdim} -optimize_netgen {geofile}")
 
     model_rank = 0
     mesh_comm = MPI.COMM_WORLD
-    mesh, _, ft = gmshio.read_from_msh("cfd.msh", mesh_comm, model_rank)
+    mesh, _, ft = gmshio.read_from_msh(geofile.replace('.geo', '.msh'), mesh_comm, model_rank)
     ft.name = "Facet tags"
 
     with dolfinx.io.XDMFFile(MPI.COMM_WORLD, f"{outdir}/{filename}.xdmf", "w") as xdmf:
@@ -35,6 +35,7 @@ if __name__ == "__main__":
                         help="Name of output file (without XDMF extension)")
     parser.add_argument("--outdir", default="meshes", type=str, dest="outdir",
                         help="Name of output folder")
+    parser.add_argument("--geofile", default="cfd.geo", type=str)
     args = parser.parse_args()
     os.system(f"mkdir -p {args.outdir}")
-    generate_3D_channel(args.filename, args.outdir)
+    generate_3D_channel(args.filename, args.outdir, args.geofile)
