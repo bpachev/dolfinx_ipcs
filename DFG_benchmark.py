@@ -63,8 +63,8 @@ def IPCS(outdir: Path, filename: str, degree_u: int, cuda=False,
     # Temporal parameters
     t = 0
     dt = default_scalar_type(1e-2)
-    T = 8
-    #T=2*dt
+    #T = 8
+    T=2*dt
 
     # Physical parameters
     nu = 0.001
@@ -144,6 +144,7 @@ def IPCS(outdir: Path, filename: str, degree_u: int, cuda=False,
         a_tent = cufem.form(a_tent, jit_options=jit_options)
         device_bcs_tent = asm.pack_bcs(bcs_tent)
         A_tent = asm.assemble_matrix(a_tent, bcs=device_bcs_tent)
+        A_tent.to_host()
         L_tent = cufem.form(L_tent, jit_options=jit_options)
         b_tent = asm.create_vector(L_tent)
     else:
@@ -165,6 +166,7 @@ def IPCS(outdir: Path, filename: str, degree_u: int, cuda=False,
         a_corr = cufem.form(a_corr, jit_options=jit_options)
         device_bcs_corr = asm.pack_bcs(bcs_corr)
         A_corr = asm.assemble_matrix(a_corr, bcs=device_bcs_corr)
+        A_corr.to_host()
         L_corr = cufem.form(L_corr, jit_options=jit_options)
         b_corr = asm.create_vector(L_corr)
         cu_phi = asm.create_vector(L_corr)
@@ -181,6 +183,7 @@ def IPCS(outdir: Path, filename: str, degree_u: int, cuda=False,
         L_up = cufem.form((ufl.inner(u_tent, v) - w_time**(-1) * ufl.inner(ufl.grad(phi), v)) * dx,
                     jit_options=jit_options)
         A_up = asm.assemble_matrix(a_up)
+        A_up.to_host()
         b_up = asm.create_vector(L_up)
     else:
         a_up = fem.form(ufl.inner(u, v) * dx, jit_options=jit_options)
@@ -261,6 +264,7 @@ def IPCS(outdir: Path, filename: str, degree_u: int, cuda=False,
                     # Account for changing bcs on device
                     device_bcs_tent.update(bcs_tent)
                     asm.assemble_matrix(a_tent, mat=A_tent, bcs=device_bcs_tent)
+                    A_tent.to_host()
                     asm.assemble_vector(L_tent, b_tent)
                     asm.apply_lifting(b_tent, [a_tent], [device_bcs_tent])
                     # need to specify the function space where bcs apply
