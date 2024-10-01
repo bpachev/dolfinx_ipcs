@@ -1,66 +1,22 @@
-[![DOLFINx testing](https://github.com/jorgensd/dolfinx_ipcs/actions/workflows/testing.yml/badge.svg)](https://github.com/jorgensd/dolfinx_ipcs/actions/workflows/testing.yml)
 
-Author: Jørgen S. Dokken
-
-Repository for a simple BDF2 IPCS solver for the Navier-Stokes equations with an implicit Adam-Bashforth linearization and a Temam device.
+This is a modified version of Jørgen S. Dokken's FEniCSx IPCS solver for the Navier-Stokes equations. It adds support for running the benchmark script with GPU acceleration. The original README can be found [here](https://github.com/jorgensd/dolfinx_ipcs/blob/main/README.md).
 
 # Installation
 
-The code in this repository require [GMSH](https://gmsh.info/), including Python interface, [DOLFINx](https://github.com/FEniCS/dolfinx/) and [tqdm](https://github.com/tqdm/tqdm).
-
-There are various ways to install these packages.
-
-## Docker
-
-You can use the pre-build docker image `ghcr.io/jorgensd/dolfinx_ipcs:v0.7.0` from [here](https://github.com/jorgensd/dolfinx_ipcs/pkgs/container/dolfinx_ipcs)
-
-# Taylor-Green benchmark
-
-To run the 2D Taylor-Green benchmark, run `ipcs.py`.
-Use
-
-```bash
-python3 ipcs.py --help
-```
-
-for command-line options.
+The code in this repository requires [GMSH](https://gmsh.info/), including the Python interface, [tqdm](https://github.com/tqdm/tqdm), and [CUDOLFINx]((https://github.com/bpachev/cuda-dolfinx)).
 
 # [DFG 3D benchmark](http://www.featflow.de/en/benchmarks/cfdbenchmarking/flow/dfg_flow3d.html)
 
-The resolution of the mesh can be changed by modifying the lc variable in `cfd.geo`
-
-To generate the mesh from the geo file, run
+The resolution of the mesh can be changed by modifying the lc variable in `cfd.geo`. Two higher-resolution geofiles are provided with the repository for convenience - `cfd.geo-lc003` and `cfd.geo-lc0006`. The original three-dimensional mesh generation script has been modified to allow generation of multiple named meshes. For example:
 
 ```bash
-python3 create_and_convert_3D_mesh.py
+python3 create_and_convert_3D_mesh.py --geofile=cfd.geo-lc003 --outfile=channel3D-lc003
 ```
 
-Run
+To solve the problem with CUDA acceleration, run
 
 ```bash
-python3 create_and_convert_3D_mesh.py --help
+python3 DFG_benchmark.py --cuda --filename=channel3D-lc003
 ```
 
-for command-line options.
-
-To solve the problem, run
-
-```bash
-python3 DFG_benchmark.py --3D
-```
-
-# [DFG 2D-3](http://www.mathematik.tu-dortmund.de/~featflow/en/benchmarks/cfdbenchmarking/flow/dfg_benchmark3_re100.html)
-
-To generate a mesh for the 2D problem, run
-
-```bash
-python3 create_and_convert_2D_mesh.py --help
-```
-
-for command-line options.
-
-The problem is solved by running
-
-```bash
-python3 DFG_benchmark.py
-```
+The benchmark can be run as normal by excluding the --cuda option, which may be desireable when comparing GPU-accelerated performance to a parallel CPU baseline.
