@@ -37,7 +37,7 @@ def print_vec(vec, name):
     """Print sum of entries in PETSc vector"""
     print(f"Sum of {name}: {vec.array[:].sum()}")
 
-def IPCS(outdir: Path, filename: str, degree_u: int, cuda=False,
+def IPCS(outdir: Path, filename: str, degree_u: int, cuda: bool = False, N: int = 100,
          jit_options: dict = {"cffi_extra_compile_args": ["-Ofast", "-march=native"], "cffi_libraries": ["m"]}):
     assert degree_u >= 2
 
@@ -63,8 +63,7 @@ def IPCS(outdir: Path, filename: str, degree_u: int, cuda=False,
     # Temporal parameters
     t = 0
     dt = default_scalar_type(1e-2)
-    #T = 8
-    T=2*dt
+    T=N*dt
 
     # Physical parameters
     nu = 0.001
@@ -144,7 +143,7 @@ def IPCS(outdir: Path, filename: str, degree_u: int, cuda=False,
         a_tent = cufem.form(a_tent, jit_options=jit_options)
         device_bcs_tent = asm.pack_bcs(bcs_tent)
         A_tent = asm.assemble_matrix(a_tent, bcs=device_bcs_tent)
-        A_tent.to_host()
+        A_tent.assemble()
         L_tent = cufem.form(L_tent, jit_options=jit_options)
         b_tent = asm.create_vector(L_tent)
     else:
@@ -166,7 +165,7 @@ def IPCS(outdir: Path, filename: str, degree_u: int, cuda=False,
         a_corr = cufem.form(a_corr, jit_options=jit_options)
         device_bcs_corr = asm.pack_bcs(bcs_corr)
         A_corr = asm.assemble_matrix(a_corr, bcs=device_bcs_corr)
-        A_corr.to_host()
+        A_corr.assemble()
         L_corr = cufem.form(L_corr, jit_options=jit_options)
         b_corr = asm.create_vector(L_corr)
         cu_phi = asm.create_vector(L_corr)
@@ -183,7 +182,7 @@ def IPCS(outdir: Path, filename: str, degree_u: int, cuda=False,
         L_up = cufem.form((ufl.inner(u_tent, v) - w_time**(-1) * ufl.inner(ufl.grad(phi), v)) * dx,
                     jit_options=jit_options)
         A_up = asm.assemble_matrix(a_up)
-        A_up.to_host()
+        A_up.assemble()
         b_up = asm.create_vector(L_up)
     else:
         a_up = fem.form(ufl.inner(u, v) * dx, jit_options=jit_options)
@@ -245,7 +244,6 @@ def IPCS(outdir: Path, filename: str, degree_u: int, cuda=False,
     out_p.write(t)"""
 
     # Solve problem
-    N = int(T / dt)
     if has_tqdm:
         time_range = tqdm(range(N))
     else:
@@ -264,7 +262,7 @@ def IPCS(outdir: Path, filename: str, degree_u: int, cuda=False,
                     # Account for changing bcs on device
                     device_bcs_tent.update(bcs_tent)
                     asm.assemble_matrix(a_tent, mat=A_tent, bcs=device_bcs_tent)
-                    A_tent.to_host()
+                    A_tent.assemble()
                     asm.assemble_vector(L_tent, b_tent)
                     asm.apply_lifting(b_tent, [a_tent], [device_bcs_tent])
                     # need to specify the function space where bcs apply
@@ -342,9 +340,13 @@ def IPCS(outdir: Path, filename: str, degree_u: int, cuda=False,
     timing_arrs = {
       task: MPI.COMM_WORLD.gather(common.timing(task), root=0) for task in tasks
     }
-    print(timing_arrs)
     if comm.rank == 0:
         max_times = {}
+        print(
+            f"Num cells={mesh.topology.index_map(mesh.topology.dim).size_global},"
+            f" Velocity Dofs={V.dofmap.index_map.size_global}"
+            f" Pressure Dofs={Q.dofmap.index_map.size_global}"
+        )
         for task, arr in timing_arrs.items():
           arr = np.asarray(arr)
           max_times[task] = np.max(arr[:,1]/arr[:,0])
@@ -385,9 +387,10 @@ if __name__ == "__main__":
     #_2D.add_argument('--3D', dest='threed', action='store_true', help="Use 3D mesh", default=False)
     parser.add_argument("--outdir", default="results", type=str, dest="outdir", help="Name of output folder")
     parser.add_argument("--cuda", action="store_true", help="Use GPU acceleration", default=False)
+    parser.add_argument("--N", default=100, type=int, help="Number of time steps.")
     parser.add_argument("--filename", default="channel2D")
     args = parser.parse_args()
    # dim = 3 if args.threed else 2
     outdir = Path(args.outdir)
     outdir.mkdir(exist_ok=True)
-    IPCS(outdir, filename=args.filename, degree_u=args.degree, cuda=args.cuda)
+    IPCS(outdir, filename=args.filename, degree_u=args.degree, cuda=args.cuda, N=args.N)
