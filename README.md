@@ -10,7 +10,7 @@ The code in this repository requires [GMSH](https://gmsh.info/), including the P
 The resolution of the mesh can be changed by modifying the lc variable in `cfd.geo`. Two higher-resolution geofiles are provided with the repository for convenience - `cfd.geo-lc003` and `cfd.geo-lc0006`. The original three-dimensional mesh generation script has been modified to allow generation of multiple named meshes. For example:
 
 ```bash
-python3 create_and_convert_3D_mesh.py --geofile=cfd.geo-lc003 --outfile=channel3D-lc003
+python3 create_and_convert_3D_mesh.py --geofile=cfd.geo-lc003 --filename=channel3D-lc003
 ```
 
 To solve the problem with CUDA acceleration, run
